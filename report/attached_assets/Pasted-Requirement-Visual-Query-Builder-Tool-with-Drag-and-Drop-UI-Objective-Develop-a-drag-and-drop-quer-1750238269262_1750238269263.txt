@@ -1,0 +1,93 @@
+Requirement: Visual Query Builder Tool with Drag-and-Drop UI
+Objective:
+Develop a drag-and-drop query builder UI tool that enables non-technical users (without SQL knowledge) to visually construct complex SQL queries and generate tabular reports from them.
+
+Technology Stack:
+Frontend:
+
+ReactJS for building the interactive UI.
+
+Drag-and-Drop Libraries (e.g., react-dnd or react-beautiful-dnd) for visual query construction.
+
+REST API integration to communicate with the backend.
+
+UI libraries (e.g., Material UI or Ant Design) for consistent styling and UX.
+
+Backend:
+
+Node.js with Express.js for handling API requests and business logic.
+
+PostgreSQL as the primary relational database.
+
+SQL generation logic to convert UI inputs into executable PostgreSQL queries.
+
+Core Functionality:
+Visual Drag-and-Drop Interface:
+
+Users build SQL queries through a graphical interface using drag-and-drop components.
+
+Manual SQL writing is not required.
+
+Query Construction Flow:
+
+Step 1: Table Selection
+
+User selects one or more tables from the database schema.
+
+Step 2: Column Population
+
+Based on the selected tables, related columns are dynamically populated for user selection.
+
+Step 3: Query Building
+
+Users define filters, conditions, joins, functions, and other operations using drag-and-drop controls.
+
+Supported Features:
+
+Subqueries:
+
+Ability to insert subqueries within filters, conditions, or selected fields.
+
+Subqueries are also built using the same visual interface.
+
+SQL Keywords:
+
+Support for DISTINCT, GROUP BY, ORDER BY, etc.
+
+SQL Functions:
+
+Include DATE_TRUNC, aggregation (COUNT, SUM, AVG), and others.
+
+Aliases and Descriptions:
+
+Users can define alias names for selected columns.
+
+Optional descriptions for documentation or understanding column purpose.
+
+Editing and Flexibility:
+
+All query components (tables, conditions, functions, etc.) should be modifiable.
+
+Allow in-place editing of subqueries and operations.
+
+Final Output:
+
+Generated query is executed on the backend via PostgreSQL.
+
+The resulting data is rendered in a table format on the frontend.
+
+Optionally, allow users to download or export the report (CSV, Excel, etc.).
+
+User Profile:
+Non-SQL users familiar with the database structure (tables and columns).
+
+They will rely on UI-driven interactions instead of writing SQL.
+
+Technical Considerations:
+Secure and optimize REST API communication between frontend and backend.
+
+Validate and sanitize user inputs to prevent SQL injection.
+
+Use SQL generation libraries or custom logic on the backend to translate UI actions into valid PostgreSQL queries.
+
+Support query performance monitoring and error reporting in case of invalid configurations.
