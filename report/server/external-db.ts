@@ -77,6 +77,7 @@ class ExternalDatabaseManager {
       throw new Error('No external database configured');
     }
 
+    console.log('[DEBUG] External DB Config:', this.currentConfig);
     if (this.currentConfig.type === 'postgresql') {
       const { Pool } = await import('pg');
       const extPool = new Pool({

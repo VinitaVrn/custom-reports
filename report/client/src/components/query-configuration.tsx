@@ -1,16 +1,32 @@
-import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { CheckCircle, AlertCircle, Hash, Plus, Calendar, X, Link } from 'lucide-react';
-import type { QueryConfig, QueryCondition, QueryJoin } from '@/types/query';
-import { SQL_FUNCTIONS, SQL_OPERATORS } from '@/types/query';
-import { fetchTableColumns, fetchTables } from '@/lib/api';
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  SelectGroup,
+  SelectLabel,
+} from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  CheckCircle,
+  AlertCircle,
+  Hash,
+  Plus,
+  Calendar,
+  X,
+  Link,
+} from "lucide-react";
+import type { QueryConfig, QueryCondition, QueryJoin } from "@/types/query";
+import { SQL_FUNCTIONS, SQL_OPERATORS } from "@/types/query";
+import { fetchTableColumns, fetchTables } from "@/lib/api";
 
 interface QueryConfigurationProps {
   config: QueryConfig;
@@ -18,45 +34,63 @@ interface QueryConfigurationProps {
   validation: { isValid: boolean; errors: string[] };
 }
 
-export function QueryConfiguration({ config, onChange, validation }: QueryConfigurationProps) {
-  const [columnsCache, setColumnsCache] = useState<Record<string, Array<{ column_name: string }>>>({});
-  const [availableColumns, setAvailableColumns] = useState<Array<{ value: string; label: string; table: string }>>([]);
+export function QueryConfiguration({
+  config,
+  onChange,
+  validation,
+}: QueryConfigurationProps) {
+  const [columnsCache, setColumnsCache] = useState<
+    Record<string, Array<{ column_name: string }>>
+  >({});
+  const [availableColumns, setAvailableColumns] = useState<
+    Array<{ value: string; label: string; table: string }>
+  >([]);
   const [isLoadingColumns, setIsLoadingColumns] = useState(false);
   const [errorTables, setErrorTables] = useState<string[]>([]);
 
   // Get all tables involved in the query (selected tables + joined tables)
-  const allTables = Array.from(new Set([
-    ...config.selectedTables,
-    ...config.joins.map(join => join.leftTable),
-    ...config.joins.map(join => join.rightTable)
-  ]));
+  const allTables = Array.from(
+    new Set([
+      ...config.selectedTables.map((t) => `${t.schema}.${t.tableName}`),
+      ...config.joins.map((join) => join.leftTable),
+      ...config.joins.map((join) => join.rightTable),
+    ])
+  );
 
   // Fetch all tables data once
   const { data: allTablesData } = useQuery({
-    queryKey: ['remote/tables'],
+    queryKey: ["remote/tables"],
     queryFn: fetchTables,
   });
 
   useEffect(() => {
     const fetchMissingColumns = async () => {
       setIsLoadingColumns(true);
-      const missingTables = allTables.filter(table => table && !(table in columnsCache));
-      const newCache: Record<string, Array<{ column_name: string }>> = { ...columnsCache };
+      const missingTables = allTables.filter(
+        (tableKey) => tableKey && !(tableKey in columnsCache)
+      );
+      const newCache: Record<string, Array<{ column_name: string }>> = {
+        ...columnsCache,
+      };
       const newErrorTables: string[] = [];
-      for (const tableName of missingTables) {
+      for (const tableKey of missingTables) {
+        const [schema, tableName] = tableKey.split(".");
+
         try {
-          const columns = await fetchTableColumns('public', tableName);
+          const columns = await fetchTableColumns(schema, tableName);
           if (Array.isArray(columns) && columns.length > 0) {
-            newCache[tableName] = columns.filter((col: any) => col.column_name && col.column_name.trim());
+            newCache[tableKey] = columns.filter(
+              (col: any) => col.column_name && col.column_name.trim()
+            );
           } else {
-            newCache[tableName] = [];
-            newErrorTables.push(tableName);
-            console.warn(`No columns found for table: ${tableName}`);
+            newCache[tableKey] = [];
+            newErrorTables.push(tableKey);
+            console.warn(`No columns found for table: ${tableKey}`);
           }
         } catch (error) {
-          newCache[tableName] = [];
-          newErrorTables.push(tableName);
-          console.error(`Error fetching columns for ${tableName}:`, error);
+          newCache[tableKey] = [];
+          newErrorTables.push(tableKey);
+          console.error(`Error fetching columns for ${tableKey}:`, error);
         }
       }
       setColumnsCache(newCache);
@@ -69,23 +103,24 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
       setAvailableColumns([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTables.join(','), columnsCache]);
+  }, [allTables.join(","), columnsCache]);
 
   // Build availableColumns from cache
   useEffect(() => {
-    const allColumns: Array<{ value: string; label: string; table: string }> = [];
-    for (const tableName of allTables) {
-      const columns = columnsCache[tableName] || [];
+    const allColumns: Array<{ value: string; label: string; table: string }> =
+      [];
+    for (const fullTableName of allTables) {
+      const columns = columnsCache[fullTableName] || [];
       columns.forEach((column: any) => {
         allColumns.push({
-          value: `${tableName}.${column.column_name}`,
-          label: `${tableName}.${column.column_name}`,
-          table: tableName
+          value: `${fullTableName}.${column.column_name}`,
+          label: `${column.column_name}`,
+          table: fullTableName,
         });
       });
     }
     setAvailableColumns(allColumns);
-  }, [columnsCache, allTables.join(',')]);
+  }, [columnsCache, allTables.join(",")]);
 
   // Column management functions
   const addToGroupBy = (column: string) => {
@@ -95,69 +130,88 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
   };
 
   const removeFromGroupBy = (column: string) => {
-    const newGroupBy = config.groupBy.filter(col => col !== column);
+    const newGroupBy = config.groupBy.filter((col) => col !== column);
     onChange({ ...config, groupBy: newGroupBy });
   };
 
   // JOIN management functions
   const addJoin = () => {
+    const tables = config.selectedTables;
+
+    // Guard: need at least two tables to create a join
+    if (tables.length < 2) return;
+
+    const left = `${tables[0].schema}.${tables[0].tableName}`;
+    const right = `${tables[1].schema}.${tables[1].tableName}`;
+
     const newJoin: QueryJoin = {
       id: `join_${Date.now()}`,
-      type: 'INNER',
-      leftTable: config.selectedTables[0] || '',
-      leftColumn: '',
-      rightTable: config.selectedTables[1] || '',
-      rightColumn: ''
+      type: "INNER",
+      leftTable: left,
+      leftColumn: "",
+      rightTable: right,
+      rightColumn: "",
+      additionalConditions: [],
     };
+
     onChange({ ...config, joins: [...config.joins, newJoin] });
   };
 
   const updateJoin = (joinId: string, updates: Partial<QueryJoin>) => {
-    const newJoins = config.joins.map(join => 
+    const updatedJoins = config.joins.map((join) =>
       join.id === joinId ? { ...join, ...updates } : join
     );
-    onChange({ ...config, joins: newJoins });
+    onChange({ ...config, joins: updatedJoins });
   };
 
   const removeJoin = (joinId: string) => {
-    const newJoins = config.joins.filter(join => join.id !== joinId);
-    onChange({ ...config, joins: newJoins });
+    const remainingJoins = config.joins.filter((join) => join.id !== joinId);
+    onChange({ ...config, joins: remainingJoins });
   };
 
   // Condition management functions
   const addCondition = () => {
     const newCondition: QueryCondition = {
       id: `condition_${Date.now()}`,
-      column: '',
-      operator: '=',
-      value: '',
-      logicalOperator: config.conditions.length > 0 ? 'AND' : undefined
+      column: "",
+      operator: "=",
+      value: "",
+      logicalOperator: config.conditions.length > 0 ? "AND" : undefined,
     };
     onChange({ ...config, conditions: [...config.conditions, newCondition] });
   };
 
-  const updateCondition = (conditionId: string, updates: Partial<QueryCondition>) => {
-    const newConditions = config.conditions.map(condition => 
+  const updateCondition = (
+    conditionId: string,
+    updates: Partial<QueryCondition>
+  ) => {
+    const newConditions = config.conditions.map((condition) =>
       condition.id === conditionId ? { ...condition, ...updates } : condition
     );
     onChange({ ...config, conditions: newConditions });
   };
 
   const removeCondition = (conditionId: string) => {
-    const newConditions = config.conditions.filter(condition => condition.id !== conditionId);
+    const newConditions = config.conditions.filter(
+      (condition) => condition.id !== conditionId
+    );
     onChange({ ...config, conditions: newConditions });
   };
 
   // Helper function to get columns for a specific table
   const getColumnsForTable = (tableName: string) => {
     return availableColumns
-      .filter(col => col.table === tableName)
-      .map(col => ({
-        name: col.value.split('.')[1] || col.value,
-        fullName: col.value
-      }))
-      .filter(col => col.name && col.name.trim() !== '');
+      .filter((col) => col.table === tableName)
+      .map((col) => {
+        const parts = col.value.split(".");
+        return {
+          name: parts[2] || col.value,
+          fullName: col.value,
+        };
+      })
+      .filter((col) => col.name && col.name.trim() !== "");
   };
+  // const aggregationAliases = aggregations.map(a => a.alias);
 
   return (
     <div className="space-y-6">
@@ -182,7 +236,9 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
           <CardContent>
             <div className="space-y-1">
               {validation.errors.map((error, index) => (
-                <p key={index} className="text-sm text-red-600">• {error}</p>
+                <p key={index} className="text-sm text-red-600">
+                  • {error}
+                </p>
               ))}
             </div>
           </CardContent>
@@ -197,9 +253,17 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
         <CardContent className="space-y-4">
           <div className="space-y-3">
             {config.joins.map((join) => (
-              <div key={join.id} className="p-3 bg-gray-50 rounded-lg space-y-3">
+              <div
+                key={join.id}
+                className="p-3 bg-gray-50 rounded-lg space-y-3"
+              >
                 <div className="flex items-center justify-between">
-                  <Select value={join.type} onValueChange={(value: any) => updateJoin(join.id, { type: value })}>
+                  <Select
+                    value={join.type}
+                    onValueChange={(value: any) =>
+                      updateJoin(join.id, { type: value })
+                    }
+                  >
                     <SelectTrigger className="w-24">
                       <SelectValue />
                     </SelectTrigger>
@@ -210,8 +274,8 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
                       <SelectItem value="FULL">FULL</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     size="sm"
                     onClick={() => removeJoin(join.id)}
                     className="text-red-600 hover:bg-red-50"
@@ -219,31 +283,57 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label className="text-xs text-gray-600">Left Table</Label>
-                    <Select value={join.leftTable} onValueChange={(value) => updateJoin(join.id, { leftTable: value })}>
+                    <Select
+                      value={join.leftTable}
+                      onValueChange={(value) =>
+                        updateJoin(join.id, { leftTable: value })
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select table" />
                       </SelectTrigger>
                       <SelectContent>
-                        {allTables.map(table => (
-                          <SelectItem key={table} value={table}>{table}</SelectItem>
-                        ))}
+                        {allTables.map((table) => {
+                          const [schema, tableName] = table.split(".");
+                          return (
+                            <SelectItem key={table} value={table}>
+                              {tableName}
+                              <span className="text-gray-400 text-xs ml-1">
+                                ({schema})
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
                     <Label className="text-xs text-gray-600">Right Table</Label>
-                    <Select value={join.rightTable} onValueChange={(value) => updateJoin(join.id, { rightTable: value })}>
+                    <Select
+                      value={join.rightTable}
+                      onValueChange={(value) =>
+                        updateJoin(join.id, { rightTable: value })
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select table" />
                       </SelectTrigger>
                       <SelectContent>
-                        {allTables.map(table => (
-                          <SelectItem key={table} value={table}>{table}</SelectItem>
-                        ))}
+                        {allTables.map((table) => {
+                          const [schema, tableName] = table.split(".");
+                          return (
+                            <SelectItem key={table} value={table}>
+                              {tableName}
+                              <span className="text-gray-400 text-xs ml-1">
+                                ({schema})
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -252,31 +342,53 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label className="text-xs text-gray-600">Left Column</Label>
-                    <Select value={join.leftColumn} onValueChange={(value) => updateJoin(join.id, { leftColumn: value })}>
+                    <Select
+                      value={join.leftColumn}
+                      onValueChange={(value) =>
+                        updateJoin(join.id, { leftColumn: value })
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select column" />
                       </SelectTrigger>
                       <SelectContent>
-                        {getColumnsForTable(join.leftTable).map((col, index) => (
-                          <SelectItem key={`left-${join.leftTable}-${col.name}-${index}`} value={col.name}>
-                            {col.name}
-                          </SelectItem>
-                        ))}
+                        {getColumnsForTable(join.leftTable).map(
+                          (col, index) => (
+                            <SelectItem
+                              key={`left-${join.leftTable}-${col.name}-${index}`}
+                              value={col.name}
+                            >
+                              {col.name}
+                            </SelectItem>
+                          )
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs text-gray-600">Right Column</Label>
-                    <Select value={join.rightColumn} onValueChange={(value) => updateJoin(join.id, { rightColumn: value })}>
+                    <Label className="text-xs text-gray-600">
+                      Right Column
+                    </Label>
+                    <Select
+                      value={join.rightColumn}
+                      onValueChange={(value) =>
+                        updateJoin(join.id, { rightColumn: value })
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select column" />
                       </SelectTrigger>
                       <SelectContent>
-                        {getColumnsForTable(join.rightTable).map((col, index) => (
-                          <SelectItem key={`right-${join.rightTable}-${col.name}-${index}`} value={col.name}>
-                            {col.name}
-                          </SelectItem>
-                        ))}
+                        {getColumnsForTable(join.rightTable).map(
+                          (col, index) => (
+                            <SelectItem
+                              key={`right-${join.rightTable}-${col.name}-${index}`}
+                              value={col.name}
+                            >
+                              {col.name}
+                            </SelectItem>
+                          )
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -284,21 +396,22 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
               </div>
             ))}
           </div>
-          
+
           {config.selectedTables.length < 2 ? (
             <div className="text-center p-3 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-600 mb-2">
-                To create joins, first drag at least 2 tables from the left sidebar to the query canvas.
+                To create joins, first drag at least 2 tables from the left
+                sidebar to the query canvas.
               </p>
               <p className="text-xs text-blue-500">
                 Drag tables → Configure joins → Execute query
               </p>
             </div>
           ) : (
-            <Button 
+            <Button
               onClick={addJoin}
-              variant="outline" 
-              size="sm" 
+              variant="outline"
+              size="sm"
               className="w-full"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -311,17 +424,26 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
       {/* Conditions & Filters */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Conditions & Filters</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            Conditions & Filters
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
             {config.conditions.map((condition) => (
-              <div key={condition.id} className="p-3 bg-gray-50 rounded-lg space-y-3">
+              <div
+                key={condition.id}
+                className="p-3 bg-gray-50 rounded-lg space-y-3"
+              >
                 <div className="flex items-center justify-between">
                   {condition.logicalOperator && (
-                    <Select 
-                      value={condition.logicalOperator} 
-                      onValueChange={(value: 'AND' | 'OR') => updateCondition(condition.id, { logicalOperator: value })}
+                    <Select
+                      value={condition.logicalOperator}
+                      onValueChange={(value: "AND" | "OR") =>
+                        updateCondition(condition.id, {
+                          logicalOperator: value,
+                        })
+                      }
                     >
                       <SelectTrigger className="w-20">
                         <SelectValue />
@@ -332,8 +454,8 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
                       </SelectContent>
                     </Select>
                   )}
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     size="sm"
                     onClick={() => removeCondition(condition.id)}
                     className="text-red-600 hover:bg-red-50"
@@ -341,30 +463,44 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                
+
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <Label className="text-xs text-gray-600">Column</Label>
-                    <Select value={condition.column} onValueChange={(value) => updateCondition(condition.id, { column: value })}>
+                    <Select
+                      value={condition.column}
+                      onValueChange={(value) =>
+                        updateCondition(condition.id, { column: value })
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select column" />
                       </SelectTrigger>
                       <SelectContent>
-                        {availableColumns.map(col => (
-                          <SelectItem key={col.value} value={col.value}>{col.label}</SelectItem>
+                        {availableColumns.map((col) => (
+                          <SelectItem key={col.value} value={col.value}>
+                            {col.label.split(".").pop()}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
                     <Label className="text-xs text-gray-600">Operator</Label>
-                    <Select value={condition.operator} onValueChange={(value) => updateCondition(condition.id, { operator: value })}>
+                    <Select
+                      value={condition.operator}
+                      onValueChange={(value) =>
+                        updateCondition(condition.id, { operator: value })
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {SQL_OPERATORS.map(op => (
-                          <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+                        {SQL_OPERATORS.map((op) => (
+                          <SelectItem key={op} value={op}>
+                            {op}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -373,7 +509,9 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
                     <Label className="text-xs text-gray-600">Value</Label>
                     <Input
                       value={condition.value}
-                      onChange={(e) => updateCondition(condition.id, { value: e.target.value })}
+                      onChange={(e) =>
+                        updateCondition(condition.id, { value: e.target.value })
+                      }
                       placeholder="Enter value"
                     />
                   </div>
@@ -381,11 +519,11 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
               </div>
             ))}
           </div>
-          
-          <Button 
+
+          <Button
             onClick={addCondition}
-            variant="outline" 
-            size="sm" 
+            variant="outline"
+            size="sm"
             className="w-full"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -402,8 +540,12 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">
             {config.groupBy.map((column) => (
-              <Badge key={column} variant="secondary" className="flex items-center space-x-1">
-                <span>{column}</span>
+              <Badge
+                key={column}
+                variant="secondary"
+                className="flex items-center space-x-1"
+              >
+                <span>{column.split(".").pop()}</span>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -415,31 +557,49 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
               </Badge>
             ))}
           </div>
-          
+
           <Select value="" onValueChange={addToGroupBy}>
             <SelectTrigger>
               <SelectValue placeholder="Add column to group by..." />
             </SelectTrigger>
             <SelectContent>
               {isLoadingColumns ? (
-                <div className="px-4 py-2 text-sm text-gray-500">Loading columns...</div>
+                <div className="px-4 py-2 text-sm text-gray-500">
+                  Loading columns...
+                </div>
               ) : availableColumns.length === 0 ? (
-                <div className="px-4 py-2 text-sm text-gray-500">No columns available for selected tables.</div>
+                <div className="px-4 py-2 text-sm text-gray-500">
+                  No columns available for selected tables.
+                </div>
               ) : (
-                Array.from(new Set(availableColumns.map(col => col.table))).map(tableName => (
+                Array.from(
+                  new Set(availableColumns.map((col) => col.table))
+                ).map((tableName) => (
                   <SelectGroup key={tableName}>
                     <SelectLabel>{tableName}</SelectLabel>
                     {errorTables.includes(tableName) ? (
-                      <div className="px-4 py-2 text-xs text-red-500">Failed to load columns</div>
-                    ) : availableColumns
-                        .filter(col => col.table === tableName && !config.groupBy.includes(col.value))
-                        .length === 0 ? (
-                      <div className="px-4 py-2 text-xs text-gray-400">No columns available</div>
+                      <div className="px-4 py-2 text-xs text-red-500">
+                        Failed to load columns
+                      </div>
+                    ) : availableColumns.filter(
+                        (col) =>
+                          col.table === tableName &&
+                          !config.groupBy.includes(col.value)
+                      ).length === 0 ? (
+                      <div className="px-4 py-2 text-xs text-gray-400">
+                        No columns available
+                      </div>
                     ) : (
                       availableColumns
-                        .filter(col => col.table === tableName && !config.groupBy.includes(col.value))
-                        .map(col => (
-                          <SelectItem key={col.value} value={col.value}>{col.label.split('.').pop()}</SelectItem>
+                        .filter(
+                          (col) =>
+                            col.table === tableName &&
+                            !config.groupBy.includes(col.value)
+                        )
+                        .map((col) => (
+                          <SelectItem key={col.value} value={col.value}>
+                            {col.label.split(".").pop()}
+                          </SelectItem>
                         ))
                     )}
                   </SelectGroup>
@@ -459,8 +619,8 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
           <div className="space-y-2">
             {config.orderBy.map((orderItem, index) => (
               <div key={index} className="flex items-center space-x-2">
-                <Select 
-                  value={orderItem.column} 
+                <Select
+                  value={orderItem.column}
                   onValueChange={(value) => {
                     const newOrderBy = [...config.orderBy];
                     newOrderBy[index] = { ...orderItem, column: value };
@@ -471,14 +631,16 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableColumns.map(col => (
-                      <SelectItem key={col.value} value={col.value}>{col.label}</SelectItem>
+                    {availableColumns.map((col) => (
+                      <SelectItem key={col.value} value={col.value}>
+                        {col.label.split(".").pop()}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Select 
-                  value={orderItem.direction} 
-                  onValueChange={(value: 'ASC' | 'DESC') => {
+                <Select
+                  value={orderItem.direction}
+                  onValueChange={(value: "ASC" | "DESC") => {
                     const newOrderBy = [...config.orderBy];
                     newOrderBy[index] = { ...orderItem, direction: value };
                     onChange({ ...config, orderBy: newOrderBy });
@@ -496,7 +658,9 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    const newOrderBy = config.orderBy.filter((_, i) => i !== index);
+                    const newOrderBy = config.orderBy.filter(
+                      (_, i) => i !== index
+                    );
                     onChange({ ...config, orderBy: newOrderBy });
                   }}
                   className="text-red-600 hover:bg-red-50"
@@ -506,14 +670,17 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
               </div>
             ))}
           </div>
-          
-          <Button 
+
+          <Button
             onClick={() => {
-              const newOrderBy = [...config.orderBy, { column: '', direction: 'ASC' as const }];
+              const newOrderBy = [
+                ...config.orderBy,
+                { column: "", direction: "ASC" as const },
+              ];
               onChange({ ...config, orderBy: newOrderBy });
             }}
-            variant="outline" 
-            size="sm" 
+            variant="outline"
+            size="sm"
             className="w-full"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -525,25 +692,33 @@ export function QueryConfiguration({ config, onChange, validation }: QueryConfig
       {/* Advanced Options */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Advanced Options</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            Advanced Options
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center space-x-2">
-            <Checkbox 
+            <Checkbox
               id="distinct"
               checked={config.distinct}
-              onCheckedChange={(checked) => onChange({ ...config, distinct: !!checked })}
+              onCheckedChange={(checked) =>
+                onChange({ ...config, distinct: !!checked })
+              }
             />
-            <Label htmlFor="distinct" className="text-sm">SELECT DISTINCT</Label>
+            <Label htmlFor="distinct" className="text-sm">
+              SELECT DISTINCT
+            </Label>
           </div>
-          
+
           <div>
             <Label className="text-sm text-gray-600">Limit Results</Label>
             <Input
               type="number"
-              value={config.limit || ''}
+              value={config.limit || ""}
               onChange={(e) => {
-                const limit = e.target.value ? parseInt(e.target.value) : undefined;
+                const limit = e.target.value
+                  ? parseInt(e.target.value)
+                  : undefined;
                 onChange({ ...config, limit });
               }}
               placeholder="Enter limit (optional)"

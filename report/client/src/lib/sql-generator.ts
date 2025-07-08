@@ -53,7 +53,8 @@ export class SQLGenerator {
 
     // FROM clause
     if (config.selectedTables.length > 0) {
-      parts.push(`FROM ${config.selectedTables[0]}`);
+      const table = config.selectedTables[0];
+      parts.push(`FROM ${table.tableName}`);
       
       // Add additional tables as INNER JOINs if no explicit joins are defined
       if (config.selectedTables.length > 1 && config.joins.length === 0) {

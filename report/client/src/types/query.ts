@@ -15,6 +15,7 @@ export interface Table {
 
 export interface SelectedColumn {
   id: string;
+  schema:string;
   tableName: string;
   columnName: string;
   alias?: string;
@@ -34,8 +35,10 @@ export interface QueryJoin {
   id: string;
   type: 'INNER' | 'LEFT' | 'RIGHT' | 'OUTER';
   leftTable: string;
+  leftTableAlias?: string; 
   leftColumn: string;
   rightTable: string;
+  rightTableAlias?: string;
   rightColumn: string;
   additionalConditions?: Array<{
     id: string;
@@ -45,12 +48,12 @@ export interface QueryJoin {
 }
 
 export interface QueryConfig {
-  selectedTables: string[];
+  selectedTables: { tableName: string; schema: string; alias:string }[];
   selectedColumns: SelectedColumn[];
   conditions: QueryCondition[];
   joins: QueryJoin[];
   groupBy: string[];
-  orderBy: Array<{ column: string; direction: 'ASC' | 'DESC' }>;
+  orderBy: Array<{ column: string; direction: 'ASC' | 'DESC'; alias?:string }>;
   limit?: number;
   distinct: boolean;
   logicalOperator?: 'AND' | 'OR';

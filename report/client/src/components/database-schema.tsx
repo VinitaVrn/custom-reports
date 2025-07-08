@@ -10,8 +10,8 @@ import type { Table as TableType } from '@/types/query';
 import { fetchTables, fetchTableColumns } from '@/lib/api';
 
 interface DatabaseSchemaProps {
-  onTablesAdd?: (tableNames: string[]) => void;
-  onColumnsAdd?: (columns: { tableName: string; columnName: string }[]) => void;
+  onTablesAdd?: (tables: { schema: string; table: string }[]) => void;
+  onColumnsAdd?: (columns: { schema: string; table: string; columnName: string }[]) => void;
 }
 
 export function DatabaseSchema({ onTablesAdd, onColumnsAdd }: DatabaseSchemaProps = {}) {
@@ -20,10 +20,15 @@ export function DatabaseSchema({ onTablesAdd, onColumnsAdd }: DatabaseSchemaProp
   const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
   const [selectedColumns, setSelectedColumns] = useState<Record<string, Set<string>>>({});
 
-  const { data: tables = [], isLoading: tablesLoading } = useQuery<string[]>({
+  const { data: tablesBySchema = {}, isLoading: tablesLoading } = useQuery<Record<string, string[]>>({
     queryKey: ['remote/tables'],
     queryFn: fetchTables,
   });
+
+  const flattenedTables: { schema: string; table: string }[] = Object.entries(tablesBySchema)
+  .flatMap(([schema, tables]) =>
+    tables.map(table => ({ schema, table }))
+  );
 
   const toggleTable = (tableName: string) => {
     const newExpanded = new Set(expandedTables);
@@ -35,33 +40,45 @@ export function DatabaseSchema({ onTablesAdd, onColumnsAdd }: DatabaseSchemaProp
     setExpandedTables(newExpanded);
   };
 
-  const filteredTables = tables.filter(tableName =>
-    tableName.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredTables = flattenedTables.filter(({ table }) =>
+    table.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const toggleTableSelection = (tableName: string) => {
+  const toggleTableSelection = (schema:string,table: string) => {
+    const fullName = `${schema}.${table}`;
     const newSelected = new Set(selectedTables);
-    if (newSelected.has(tableName)) {
-      newSelected.delete(tableName);
+    if (newSelected.has(fullName)) {
+      newSelected.delete(fullName);
     } else {
-      newSelected.add(tableName);
+      newSelected.add(fullName);
     }
     setSelectedTables(newSelected);
   };
 
   const addSelected = () => {
-    const selectedCols = getAllSelectedColumns();
-    if (selectedCols.length > 0 && onColumnsAdd) {
-      onColumnsAdd(selectedCols);
-      setSelectedColumns({}); // Clear after adding
-    } else if (selectedTables.size > 0 && onTablesAdd) {
-      onTablesAdd(Array.from(selectedTables));
-      setSelectedTables(new Set());
-    }
-  };
+  const selectedCols = getAllSelectedColumns(); // already includes schema
+
+  if (selectedCols.length > 0 && onColumnsAdd) {
+    onColumnsAdd(selectedCols); 
+    setSelectedColumns({});
+    return;
+  }
+
+  if (selectedTables.size > 0 && onTablesAdd) {
+    const tablesWithSchema = Array.from(selectedTables).map((fullName) => {
+      const [schema, table] = fullName.split('.');
+      return { schema, table };
+    });
+
+    onTablesAdd(tablesWithSchema);
+    setSelectedTables(new Set());
+  }
+};
+
 
   const selectAllTables = () => {
-    setSelectedTables(new Set(filteredTables));
+  const tableKeys = filteredTables.map(({ schema, table }) => `${schema}.${table}`);
+  setSelectedTables(new Set(tableKeys));
   };
 
   const clearSelection = () => {
@@ -82,14 +99,17 @@ export function DatabaseSchema({ onTablesAdd, onColumnsAdd }: DatabaseSchemaProp
 
   // Helper to get all selected columns as array of { tableName, columnName }
   const getAllSelectedColumns = () => {
-    const result: { tableName: string; columnName: string }[] = [];
-    for (const [table, cols] of Object.entries(selectedColumns)) {
-      for (const col of cols) {
-        result.push({ tableName: table, columnName: col });
-      }
+  const result: { schema: string; table: string; columnName: string }[] = [];
+
+  for (const [tableFullName, cols] of Object.entries(selectedColumns)) {
+    const [schema, table] = tableFullName.split('.');
+    for (const columnName of cols) {
+      result.push({ schema, table, columnName });
     }
-    return result;
-  };
+  }
+
+  return result;
+};
 
   return (
     <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
@@ -160,14 +180,15 @@ export function DatabaseSchema({ onTablesAdd, onColumnsAdd }: DatabaseSchemaProp
           <div className="space-y-2">
             {filteredTables.map((tableName) => (
               <TableItem
-                key={tableName}
-                tableName={tableName}
-                isExpanded={expandedTables.has(tableName)}
-                isSelected={selectedTables.has(tableName)}
-                onToggle={() => toggleTable(tableName)}
-                onSelect={() => toggleTableSelection(tableName)}
-                selectedColumns={selectedColumns[tableName] || new Set()}
-                onColumnSelect={(col) => toggleColumnSelection(tableName, col)}
+                key={`${tableName.schema}.${tableName.table}`}
+                 schema={tableName.schema}
+                tableName={tableName.table}
+                isExpanded={expandedTables.has(`${tableName.schema}.${tableName.table}`)}
+                isSelected={selectedTables.has(`${tableName.schema}.${tableName.table}`)}
+                onToggle={() => toggleTable(`${tableName.schema}.${tableName.table}`)}
+                onSelect={() => toggleTableSelection(tableName.schema,tableName.table)}
+                selectedColumns={selectedColumns[`${tableName.schema}.${tableName.table}`] || new Set()}
+                onColumnSelect={(col) => toggleColumnSelection(`${tableName.schema}.${tableName.table}`, col)}
               />
             ))}
           </div>
@@ -178,6 +199,7 @@ export function DatabaseSchema({ onTablesAdd, onColumnsAdd }: DatabaseSchemaProp
 }
 
 interface TableItemProps {
+  schema: string;
   tableName: string;
   isExpanded: boolean;
   isSelected: boolean;
@@ -187,8 +209,10 @@ interface TableItemProps {
   onColumnSelect: (columnName: string) => void;
 }
 
-function TableItem({ tableName, isExpanded, isSelected, onToggle, onSelect, selectedColumns, onColumnSelect }: TableItemProps) {
-  const fetchColumns = () => fetchTableColumns('public', tableName);
+function TableItem({ schema,tableName, isExpanded, isSelected, onToggle, onSelect, selectedColumns, onColumnSelect }: TableItemProps) {
+  // const [schema, table] = tableName.split('.');
+  console.log(schema,tableName)
+  const fetchColumns = () => fetchTableColumns(schema, tableName);
   const { data: columns = [], isLoading: columnsLoading } = useQuery({
     queryKey: ['table-columns', tableName],
     queryFn: fetchColumns,

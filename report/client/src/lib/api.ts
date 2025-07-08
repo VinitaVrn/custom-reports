@@ -2,13 +2,15 @@
 const API_BASE_URL = "https://api-report-builder.honebi.online/";
 
 // Fetches the list of tables from the remote API
-export async function fetchTables(): Promise<string[]> {
+export async function fetchTables(): Promise<Record<string, string[]>> {
   const response = await fetch(`${API_BASE_URL}schemas/tables`);
   if (!response.ok) {
     throw new Error('Failed to fetch tables');
   }
+  console.log(response)
   const data = await response.json();
-  return data.public || [];
+  console.log(data)
+  return data || {};
 }
 
 // Fetches columns for a given table from the remote API
@@ -23,6 +25,7 @@ export async function fetchTableColumns(schema: string, table: string): Promise<
   if (!response.ok) {
     throw new Error('Failed to fetch columns');
   }
+  // console.log(response)
   return await response.json();
 }
 

@@ -16,7 +16,7 @@ import { fetchTableColumns } from '@/lib/api';
 interface SubqueryBuilderProps {
   config: QueryConfig;
   onChange: (config: QueryConfig) => void;
-  availableTables: string[];
+  availableTables: { schema: string; table: string }[];
 }
 
 interface Subquery {
